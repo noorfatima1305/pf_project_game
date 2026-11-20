@@ -2,11 +2,37 @@
 #include <optional>
 #include<fstream>
 using namespace std;
-const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;
+const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;const int PLAYER_SPEED = 8;
 char maze[21][19];
-int  playerrow, playercol, ghoststartrow[4], ghoststartcol[4], pelletsleft = 0, ghostcount = 0;
+int  playerrow, playercol, ghoststartrow[4], ghoststartcol[4], pelletsleft = 0, ghostcount = 0, keydir = 0, mov_timer = 0, scores = 0;
+int playerdir = 0; int lives = 3; 
 sf::Font font;
+void playermovement()
+{
+            mov_timer++;
+            if (mov_timer < PLAYER_SPEED) return;
+            else mov_timer = 0;
+            if (keydir != 0) 
+            {
+                if(keydir==1 && maze[playerrow-1][playercol]!='#')  playerdir = keydir;
+                if (keydir == 2 && maze[playerrow + 1][playercol] != '#')  playerdir = keydir;
+                if (keydir == 3 && maze[playerrow ][playercol-1] != '#')  playerdir = keydir;
+                if (keydir == 4 && maze[playerrow ][playercol+1] != '#')  playerdir = keydir;
 
+            }
+            int newrow = playerrow; int newcol = playercol;
+            if (playerdir == 1) { newrow -= 1; }
+            else if (playerdir == 2) { newrow += 1; }
+            else if (playerdir == 3) { newcol -= 1; }
+            else if (playerdir == 4) { newcol += 1; }
+            if (maze[newrow][newcol] != '#')
+            {
+                playerrow = newrow;
+                playercol = newcol;
+                if (maze[playerrow][playercol] == 'o') { scores += 50; pelletsleft--; maze[playerrow][playercol] = '-'; }
+                else if (maze[playerrow][playercol] == '.') { scores += 10; pelletsleft--; maze[playerrow][playercol] = '-'; }
+            }
+}
 bool loadmaze()
 {
     ifstream m("maze.txt");
@@ -32,10 +58,37 @@ void handleInput(sf::RenderWindow& window)
     {
         if (event->is<sf::Event::Closed>())
             window.close();
+        else if (const auto* key = event->getIf<sf::Event::KeyPressed>())
+        {
+            if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
+                keydir = 1;
+            else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
+                keydir = 2;
+            else if (key->code == sf::Keyboard::Key::Left || key->code == sf::Keyboard::Key::A)
+                keydir = 3;
+            else if (key->code == sf::Keyboard::Key::Right || key->code == sf::Keyboard::Key::D)
+                keydir = 4;
+        }
     }
 }
+void drawPlayer(sf::RenderWindow& window)
+{
+    sf::CircleShape p(12.f);
+    p.setFillColor(sf::Color(255, 220, 0));
+    p.setPosition({ playercol * TILE + 3.f, playerrow * TILE + HUD_HEIGHT + 3.f });
+    window.draw(p);
+}
 
-void updateGame() {}   // empty for now
+void drawHUD(sf::RenderWindow& window)
+{
+    sf::Text s(font, "SCORE " + std::to_string(scores), 22);
+    s.setPosition({ 15.f, 12.f });
+    window.draw(s);
+
+    sf::Text l(font, "LIVES " + std::to_string(lives), 22);
+    l.setPosition({ 420.f, 12.f });
+    window.draw(l);
+}
 
 void drawMaze(sf::RenderWindow& window)
 {
@@ -75,8 +128,17 @@ void drawGame(sf::RenderWindow& window)
 {
     window.clear(sf::Color(10, 10, 30));
     drawMaze(window);
+    drawPlayer(window);
+    drawHUD(window);
     window.display();
 }
+
+void updateGame() 
+{
+    playermovement();
+}
+
+
 
 void drawError(sf::RenderWindow& window, sf::Font& font)
 {
