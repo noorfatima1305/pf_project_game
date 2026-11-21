@@ -8,8 +8,12 @@ const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;const
 char maze[21][19];
 int  playerrow, playercol, ghoststartrow[4], ghoststartcol[4], pelletsleft = 0, ghostcount = 0, keydir = 0, mov_timer = 0, scores = 0;
 int playerdir = 0; int lives = 3; 
-const int GHOSTSPEED = 10;
-int ghostdir[4], ghostrow[4], ghostcol[4], ghosttimer = 0;
+const int GHOSTSPEED = 10; 
+int ghostdir[4], ghostrow[4], ghostcol[4];
+//for blue ghost
+bool blueghost[4]; int playerstartrow, playerstartcol; int bluetimer, ghosttimer[4] = { 0 };
+
+const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
 
 
@@ -25,27 +29,35 @@ void startghosts()
 
 void ghostmovement()
 {
-    ghosttimer++;
-    if (ghosttimer < GHOSTSPEED) return;
-    else ghosttimer = 0;
 
     for (int i = 0; i < 4; i++)
     {
+        //ghost speed
+        ghosttimer[i]++;
+        if (blueghost[i])
+        {
+            if (ghosttimer[i] < BLUESPEED) continue; else ghosttimer[i] = 0;
+        }
+        else
+        {
+            if (ghosttimer[i] < GHOSTSPEED) continue; else ghosttimer[i] = 0;
+        }
         int countdir = 0, options[4];
         if (maze[ghostrow[i] - 1][ghostcol[i]] != '#' && ghostdir[i] != 2) options[countdir++] = 1;
-        if (maze[ghostrow[i] + 1][ghostcol[i]] != '#' && ghostdir[i] != 1) options[countdir++] = 2;
-        if (maze[ghostrow[i]][ghostcol[i] - 1] != '#' && ghostdir[i] != 4) options[countdir++] = 3;
+        if (maze[ghostrow[i]][ghostcol[i]-1] != '#' && ghostdir[i] != 1) options[countdir++] = 3;
+        if (maze[ghostrow[i]+1][ghostcol[i]] != '#' && ghostdir[i] != 4) options[countdir++] = 2;
         if (maze[ghostrow[i]][ghostcol[i] + 1] != '#' && ghostdir[i] != 3) options[countdir++] = 4;
         int bestdistance = 3200, bestdir = 0;
 
         if (countdir == 0)
         {
-        
+        //deadend
             if (ghostdir[i] == 1) ghostdir[i] = 2;
             else if (ghostdir[i] == 2) ghostdir[i] = 1;
             else if (ghostdir[i] == 3) ghostdir[i] = 4;
             else if (ghostdir[i] == 4) ghostdir[i] = 3;
         }
+        //chasers
         else if (i == 0 || i == 2) {
             for (int j = 0; j < countdir;j++) {
                 int r = ghostrow[i], c = ghostcol[i];
@@ -91,7 +103,9 @@ void playermovement()
             {
                 playerrow = newrow;
                 playercol = newcol;
-                if (maze[playerrow][playercol] == 'o') { scores += 50; pelletsleft--; maze[playerrow][playercol] = '-'; }
+                if (maze[playerrow][playercol] == 'o') { scores += 50; pelletsleft--; maze[playerrow][playercol] = '-';
+                for (int i = 0;i < 4;i++) blueghost[i] = 1; bluetimer = BLUETIME;
+                }
                 else if (maze[playerrow][playercol] == '.') { scores += 10; pelletsleft--; maze[playerrow][playercol] = '-'; }
             }
 }
@@ -109,7 +123,8 @@ bool loadmaze()
         {
             m >> maze[i][j];
             if (maze[i][j] == 'o' || maze[i][j] == '.') pelletsleft++;
-            if (maze[i][j] == 'P') { playerrow = i; playercol = j;  maze[i][j] = '-'; }
+            if (maze[i][j] == 'P') { playerrow = i; playercol = j;  maze[i][j] = '-'; 
+            }
             if (maze[i][j] == 'G') { ghoststartrow[ghostcount] = i; ghoststartcol[ghostcount] = j; ghostcount++; maze[i][j] = '-'; }
             
         }
@@ -154,14 +169,15 @@ void drawGhosts(sf::RenderWindow& window)
     {
         float x = ghostcol[i] * TILE + 3.f;
         float y = ghostrow[i] * TILE + HUD_HEIGHT + 3.f;
-
+        sf::Color c = colors[i];
+        if (blueghost[i]) c = sf::Color(40, 40, 255);
         sf::CircleShape head(12.f);
-        head.setFillColor(colors[i]);
+        head.setFillColor(c);
         head.setPosition({ x, y });
         window.draw(head);
 
         sf::RectangleShape feet({ 24.f, 12.f });
-        feet.setFillColor(colors[i]);
+        feet.setFillColor(c);
         feet.setPosition({ x, y + 12.f });
         window.draw(feet);
 
@@ -242,8 +258,15 @@ void drawGame(sf::RenderWindow& window)
 
 void updateGame() 
 {
+   
     playermovement();
+    if (bluetimer > 0)
+    {
+        bluetimer--;
+        if (bluetimer == 0) { for (int i = 0;i < 4;i++) blueghost[i] = 0; }
+    }
     ghostmovement();
+    
 }
 
 
