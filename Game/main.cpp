@@ -36,6 +36,7 @@ void ghostmovement()
         if (maze[ghostrow[i] + 1][ghostcol[i]] != '#' && ghostdir[i] != 1) options[countdir++] = 2;
         if (maze[ghostrow[i]][ghostcol[i] - 1] != '#' && ghostdir[i] != 4) options[countdir++] = 3;
         if (maze[ghostrow[i]][ghostcol[i] + 1] != '#' && ghostdir[i] != 3) options[countdir++] = 4;
+        int bestdistance = 3200, bestdir = 0;
 
         if (countdir == 0)
         {
@@ -44,6 +45,20 @@ void ghostmovement()
             else if (ghostdir[i] == 2) ghostdir[i] = 1;
             else if (ghostdir[i] == 3) ghostdir[i] = 4;
             else if (ghostdir[i] == 4) ghostdir[i] = 3;
+        }
+        else if (i == 0 || i == 2) {
+            for (int j = 0; j < countdir;j++) {
+                int r = ghostrow[i], c = ghostcol[i];
+                if (options[j] == 1) r -= 1;
+                else if (options[j] == 2) r += 1;
+                else if (options[j] == 3) c -= 1;
+                else if (options[j] == 4) c += 1;
+
+                int d = abs(r - playerrow) + abs(c - playercol);
+                if (d < bestdistance) { bestdistance = d; bestdir = options[j]; }
+
+            }
+            ghostdir[i] = bestdir;
         }
         else ghostdir[i] = options[rand() % countdir];
 
