@@ -1,12 +1,59 @@
 #include <SFML/Graphics.hpp>
 #include <optional>
 #include<fstream>
+#include <cstdlib>
+#include <ctime>
 using namespace std;
 const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;const int PLAYER_SPEED = 8;
 char maze[21][19];
 int  playerrow, playercol, ghoststartrow[4], ghoststartcol[4], pelletsleft = 0, ghostcount = 0, keydir = 0, mov_timer = 0, scores = 0;
 int playerdir = 0; int lives = 3; 
+const int GHOSTSPEED = 10;
+int ghostdir[4], ghostrow[4], ghostcol[4], ghosttimer = 0;
 sf::Font font;
+
+
+void startghosts()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        ghostrow[i] = ghoststartrow[i];
+        ghostcol[i] = ghoststartcol[i];
+        ghostdir[i] = 0;
+    }
+}
+
+void ghostmovement()
+{
+    ghosttimer++;
+    if (ghosttimer < GHOSTSPEED) return;
+    else ghosttimer = 0;
+
+    for (int i = 0; i < 4; i++)
+    {
+        int countdir = 0, options[4];
+        if (maze[ghostrow[i] - 1][ghostcol[i]] != '#' && ghostdir[i] != 2) options[countdir++] = 1;
+        if (maze[ghostrow[i] + 1][ghostcol[i]] != '#' && ghostdir[i] != 1) options[countdir++] = 2;
+        if (maze[ghostrow[i]][ghostcol[i] - 1] != '#' && ghostdir[i] != 4) options[countdir++] = 3;
+        if (maze[ghostrow[i]][ghostcol[i] + 1] != '#' && ghostdir[i] != 3) options[countdir++] = 4;
+
+        if (countdir == 0)
+        {
+        
+            if (ghostdir[i] == 1) ghostdir[i] = 2;
+            else if (ghostdir[i] == 2) ghostdir[i] = 1;
+            else if (ghostdir[i] == 3) ghostdir[i] = 4;
+            else if (ghostdir[i] == 4) ghostdir[i] = 3;
+        }
+        else ghostdir[i] = options[rand() % countdir];
+
+        if (ghostdir[i] == 1) ghostrow[i] -= 1;
+        else if (ghostdir[i] == 2) ghostrow[i] += 1;
+        else if (ghostdir[i] == 3) ghostcol[i] -= 1;
+        else if (ghostdir[i] == 4) ghostcol[i] += 1;
+    }
+}
+
 void playermovement()
 {
             mov_timer++;
@@ -35,6 +82,8 @@ void playermovement()
 }
 bool loadmaze()
 {
+    pelletsleft = 0;
+    ghostcount = 0;
     ifstream m("maze.txt");
     if (!m) { return false; }
     int r, c;
@@ -46,7 +95,8 @@ bool loadmaze()
             m >> maze[i][j];
             if (maze[i][j] == 'o' || maze[i][j] == '.') pelletsleft++;
             if (maze[i][j] == 'P') { playerrow = i; playercol = j;  maze[i][j] = '-'; }
-            if (maze[i][j] == 'G') { ghoststartrow[ghostcount++] = i; ghoststartcol[ghostcount++] = j; ghostcount++;  maze[i][j] = '-'; }
+            if (maze[i][j] == 'G') { ghoststartrow[ghostcount] = i; ghoststartcol[ghostcount] = j; ghostcount++; maze[i][j] = '-'; }
+            
         }
     }
     m.close();
@@ -71,6 +121,7 @@ void handleInput(sf::RenderWindow& window)
         }
     }
 }
+
 void drawPlayer(sf::RenderWindow& window)
 {
     sf::CircleShape p(12.f);
@@ -78,6 +129,46 @@ void drawPlayer(sf::RenderWindow& window)
     p.setPosition({ playercol * TILE + 3.f, playerrow * TILE + HUD_HEIGHT + 3.f });
     window.draw(p);
 }
+
+
+void drawGhosts(sf::RenderWindow& window)
+{
+    sf::Color colors[4] = { sf::Color(255, 60, 80), sf::Color(255, 150, 220),
+                            sf::Color(60, 220, 255), sf::Color(255, 160, 30) };
+    for (int i = 0; i < 4; i++)
+    {
+        float x = ghostcol[i] * TILE + 3.f;
+        float y = ghostrow[i] * TILE + HUD_HEIGHT + 3.f;
+
+        sf::CircleShape head(12.f);
+        head.setFillColor(colors[i]);
+        head.setPosition({ x, y });
+        window.draw(head);
+
+        sf::RectangleShape feet({ 24.f, 12.f });
+        feet.setFillColor(colors[i]);
+        feet.setPosition({ x, y + 12.f });
+        window.draw(feet);
+
+    
+        for (int e = 0; e < 2; e++)
+        {
+            float ex = x + 4.f + e * 9.f;
+            float ey = y + 6.f;
+
+            sf::CircleShape eye(4.f);
+            eye.setFillColor(sf::Color::White);
+            eye.setPosition({ ex, ey });
+            window.draw(eye);
+
+            sf::CircleShape pupil(2.f);
+            pupil.setFillColor(sf::Color(30, 30, 200));
+            pupil.setPosition({ ex + 2.f, ey + 2.f });
+            window.draw(pupil);
+        }
+    }
+}
+
 
 void drawHUD(sf::RenderWindow& window)
 {
@@ -129,6 +220,7 @@ void drawGame(sf::RenderWindow& window)
     window.clear(sf::Color(10, 10, 30));
     drawMaze(window);
     drawPlayer(window);
+    drawGhosts(window);
     drawHUD(window);
     window.display();
 }
@@ -136,6 +228,7 @@ void drawGame(sf::RenderWindow& window)
 void updateGame() 
 {
     playermovement();
+    ghostmovement();
 }
 
 
@@ -152,6 +245,7 @@ void drawError(sf::RenderWindow& window, sf::Font& font)
 
 int main()
 {
+    srand(time(0));
     sf::RenderWindow window(sf::VideoMode({ 570, 680 }), "Pac-Man");
     window.setFramerateLimit(60);
 
@@ -159,6 +253,7 @@ int main()
     if (!font.openFromFile("arial.ttf"))
         return 1;
     bool mazeOk = loadmaze();
+    startghosts();
 
     while (window.isOpen())
     {
