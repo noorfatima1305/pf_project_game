@@ -13,6 +13,9 @@ int ghostdir[4], ghostrow[4], ghostcol[4];
 //for blue ghost
 bool blueghost[4]; int playerstartrow, playerstartcol; int bluetimer, ghosttimer[4] = { 0 };
 
+int oldplayerrow, oldplayercol, oldghostrow[4], oldghostcol[4]; // [3, 4]
+int gamestate = 1; // [4]
+
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
 
@@ -58,7 +61,7 @@ void ghostmovement()
             else if (ghostdir[i] == 4) ghostdir[i] = 3;
         }
         //chasers
-        else if (i == 0 || i == 2) {
+        else if ((i == 0 || i == 2) && !blueghost[i]) {
             for (int j = 0; j < countdir;j++) {
                 int r = ghostrow[i], c = ghostcol[i];
                 if (options[j] == 1) r -= 1;
@@ -123,8 +126,14 @@ bool loadmaze()
         {
             m >> maze[i][j];
             if (maze[i][j] == 'o' || maze[i][j] == '.') pelletsleft++;
-            if (maze[i][j] == 'P') { playerrow = i; playercol = j;  maze[i][j] = '-'; 
+            if (maze[i][j] == 'P') {
+                playerrow = i;
+                playercol = j;
+                playerstartrow = i;
+                playerstartcol = j;
+                maze[i][j] = '-';
             }
+            
             if (maze[i][j] == 'G') { ghoststartrow[ghostcount] = i; ghoststartcol[ghostcount] = j; ghostcount++; maze[i][j] = '-'; }
             
         }
@@ -255,9 +264,56 @@ void drawGame(sf::RenderWindow& window)
     drawHUD(window);
     window.display();
 }
+void checkcollision() 
+{
+    for (int i = 0; i < 4; i++) 
+    {
+        if ((ghostrow[i] == playerrow && ghostcol[i] == playercol) ||
+            (oldghostrow[i] == playerrow && oldghostcol[i] == playercol &&
+                oldplayerrow == ghostrow[i] && oldplayercol == ghostcol[i])) 
+        {
+            
+            if (blueghost[i]) 
+            {
+                scores += 200; 
+                ghostrow[i] = ghoststartrow[i]; 
+                ghostcol[i] = ghoststartcol[i];
+                ghostdir[i] = 0; 
+                blueghost[i] = 0; 
+            }
+          
+            else
+            {
+                lives--; 
+                playerrow = playerstartrow; 
+                playercol = playerstartcol; 
+                oldplayerrow = playerrow; 
+                oldplayercol = playercol; 
+                for (int j = 0; j < 4; j++) 
+                {
+                    ghostrow[j] = ghoststartrow[j]; 
+                    ghostcol[j] = ghoststartcol[j]; 
+                    blueghost[j] = 0; 
+                    ghosttimer[j] = 0; 
+                    oldghostrow[j] = ghostrow[j];
+                    oldghostcol[j] = ghostcol[j]; 
+                    ghostdir[j] = 0; 
+                    bluetimer = 0; 
+                }
+                return; 
+            }
+        }
+    }
+}
 
 void updateGame() 
 {
+    oldplayerrow = playerrow;
+    oldplayercol = playercol;
+    for (int i = 0; i < 4; i++) {
+        oldghostrow[i] = ghostrow[i];
+        oldghostcol[i] = ghostcol[i];
+    }
    
     playermovement();
     if (bluetimer > 0)
@@ -266,6 +322,7 @@ void updateGame()
         if (bluetimer == 0) { for (int i = 0;i < 4;i++) blueghost[i] = 0; }
     }
     ghostmovement();
+    checkcollision();
     
 }
 
