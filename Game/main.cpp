@@ -3,6 +3,7 @@
 #include<fstream>
 #include <cstdlib>
 #include <ctime>
+#include <string>
 using namespace std;
 const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;const int PLAYER_SPEED = 8;
 char maze[21][19];
@@ -12,9 +13,13 @@ const int GHOSTSPEED = 10;
 int ghostdir[4], ghostrow[4], ghostcol[4];
 //for blue ghost
 bool blueghost[4]; int playerstartrow, playerstartcol; int bluetimer, ghosttimer[4] = { 0 };
-
-int oldplayerrow, oldplayercol, oldghostrow[4], oldghostcol[4]; // [3, 4]
-int gamestate = 1; // [4]
+//for collisions
+int oldplayerrow, oldplayercol, oldghostrow[4], oldghostcol[4]; 
+//for game state
+const int MENU = 0, PLAYING = 1, GAME_OVER = 2;
+int gamestate = MENU;
+int menuchoice = 0;        
+bool playerwon = false;
 
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
@@ -141,6 +146,20 @@ bool loadmaze()
     m.close();
     return true;
 }
+void newgame()
+{
+    loadmaze();
+    startghosts();
+    gamestate = PLAYING;
+    keydir = 0, mov_timer = 0, scores = 0;
+    playerdir = 0; lives = 3;
+    bluetimer = 0;
+    for(int i=0;i<4;i++)
+    { blueghost[i] = 0;
+    ghosttimer[i] = 0;
+}
+
+}
 void handleInput(sf::RenderWindow& window)
 {
     while (const std::optional event = window.pollEvent())
@@ -149,18 +168,51 @@ void handleInput(sf::RenderWindow& window)
             window.close();
         else if (const auto* key = event->getIf<sf::Event::KeyPressed>())
         {
-            if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
-                keydir = 1;
-            else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
-                keydir = 2;
-            else if (key->code == sf::Keyboard::Key::Left || key->code == sf::Keyboard::Key::A)
-                keydir = 3;
-            else if (key->code == sf::Keyboard::Key::Right || key->code == sf::Keyboard::Key::D)
-                keydir = 4;
+            switch (gamestate)
+            {
+            case MENU:
+                if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
+                { 
+                    menuchoice = (menuchoice + 2) % 3;
+
+                }
+                else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
+                {
+                    menuchoice = (menuchoice + 1 )% 3;
+                }
+                else if (key->code == sf::Keyboard::Key::Enter)
+                { 
+                    if (menuchoice == 0)
+                        newgame();
+                    else if (menuchoice == 1)
+                    {
+
+                    }
+                    else if(menuchoice==2)
+                    window.close();
+                }
+                break;
+            case PLAYING:
+                if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
+                    keydir = 1;
+                else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
+                    keydir = 2;
+                else if (key->code == sf::Keyboard::Key::Left || key->code == sf::Keyboard::Key::A)
+                    keydir = 3;
+                else if (key->code == sf::Keyboard::Key::Right || key->code == sf::Keyboard::Key::D)
+                    keydir = 4;
+                break;
+            case GAME_OVER:
+                if (key->code == sf::Keyboard::Key::Enter)
+                {
+                    gamestate = MENU;
+                    menuchoice = 0;
+                }
+                break;
+            }
         }
     }
 }
-
 void drawPlayer(sf::RenderWindow& window)
 {
     sf::CircleShape p(12.f);
@@ -255,13 +307,61 @@ void drawMaze(sf::RenderWindow& window)
     }
 }
 
+
+void drawCentered(sf::RenderWindow& window, const string& str, unsigned int size, float y, sf::Color color)
+{
+    sf::Text t(font, str, size);
+    t.setFillColor(color);
+    sf::FloatRect b = t.getLocalBounds();
+    t.setPosition({ (570.f - b.size.x) / 2.f, y });
+    window.draw(t);
+}
+
+void drawMenu(sf::RenderWindow& window)
+{
+    drawCentered(window, "PAC-MAN", 56, 140.f, sf::Color(255, 220, 0));
+    string items[3] = { "New Game", "Continue", "Exit" };
+    for (int i = 0; i < 3; i++)
+    {
+        sf::Color c = sf::Color(200, 200, 200);
+        string label = items[i];
+        if (i == menuchoice)
+        {
+            c = sf::Color(255, 220, 0);
+            label = "> " + items[i] + " <";
+        }
+        drawCentered(window, label, 30, 300.f + i * 60.f, c);
+    }
+}
+
+void drawEndScreen(sf::RenderWindow& window)
+{
+    if (playerwon)
+        drawCentered(window, "YOU WIN", 56, 200.f, sf::Color(60, 220, 120));
+    else
+        drawCentered(window, "GAME OVER", 56, 200.f, sf::Color(255, 60, 80));
+    drawCentered(window, "SCORE " + to_string(scores), 30, 300.f, sf::Color::White);
+    drawCentered(window, "Press Enter", 24, 380.f, sf::Color(200, 200, 200));
+}
+
 void drawGame(sf::RenderWindow& window)
 {
     window.clear(sf::Color(10, 10, 30));
-    drawMaze(window);
-    drawPlayer(window);
-    drawGhosts(window);
-    drawHUD(window);
+    switch (gamestate)
+    {
+    case MENU:
+        drawMenu(window);
+        break;
+    case PLAYING:
+        drawMaze(window);
+        drawPlayer(window);
+        drawGhosts(window);
+        drawHUD(window);
+        break;
+    case GAME_OVER:
+        drawEndScreen(window);
+        break;
+    }
     window.display();
 }
 void checkcollision() 
@@ -299,6 +399,8 @@ void checkcollision()
                     oldghostcol[j] = ghostcol[j]; 
                     ghostdir[j] = 0; 
                     bluetimer = 0; 
+                    playerdir = 0;
+                    keydir = 0;
                 }
                 return; 
             }
