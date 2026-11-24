@@ -408,26 +408,38 @@ void checkcollision()
     }
 }
 
-void updateGame() 
+void updateGame()
 {
-    oldplayerrow = playerrow;
-    oldplayercol = playercol;
-    for (int i = 0; i < 4; i++) {
-        oldghostrow[i] = ghostrow[i];
-        oldghostcol[i] = ghostcol[i];
-    }
-   
-    playermovement();
-    if (bluetimer > 0)
+    if (gamestate == PLAYING)
     {
-        bluetimer--;
-        if (bluetimer == 0) { for (int i = 0;i < 4;i++) blueghost[i] = 0; }
-    }
-    ghostmovement();
-    checkcollision();
-    
-}
+        oldplayerrow = playerrow;
+        oldplayercol = playercol;
+        for (int i = 0; i < 4; i++) {
+            oldghostrow[i] = ghostrow[i];
+            oldghostcol[i] = ghostcol[i];
+        }
 
+        playermovement();
+        if (bluetimer > 0)
+        {
+            bluetimer--;
+            if (bluetimer == 0) { for (int i = 0; i < 4; i++) blueghost[i] = 0; }
+        }
+        ghostmovement();
+        checkcollision();
+
+        if (lives <= 0)
+        {
+            gamestate = GAME_OVER;
+            playerwon = 0;
+        }
+        else if (pelletsleft == 0)
+        {
+            gamestate = GAME_OVER;
+            playerwon = 1;
+        }
+    }
+}
 
 
 void drawError(sf::RenderWindow& window, sf::Font& font)
