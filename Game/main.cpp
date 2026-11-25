@@ -20,11 +20,65 @@ const int MENU = 0, PLAYING = 1, GAME_OVER = 2;
 int gamestate = MENU;
 int menuchoice = 0;        
 bool playerwon = false;
-
+// for saved game
+bool nosave = false;
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
 
+bool savegame()
+{
+    ofstream s("savegame.txt");
+    if (!s) return 0;
+    s << scores << "  " << lives << endl;
+    s << playerrow << "  " << playercol << endl;
+    for (int i = 0;i < 4;i++)
+    {
+        s << ghostrow[i] << "  " << ghostcol[i] << " ";
+    }
+    s << endl;
+    for (int i = 0;i < ROWS;i++)
+    {
+        for (int j = 0;j < COLS;j++)
+            s << maze[i][j] ;
+        s << endl;
+    }
+    s.close();
+    return 1;
 
+}
+bool loadgame()
+{
+    ifstream s("savegame.txt");
+    if (!s) return 0;
+    if (!(s >> scores)) return false;
+    s >> lives;
+    s >> playerrow >> playercol;
+    for (int i = 0;i < 4;i++)
+    {
+        s >> ghostrow[i];
+        s >> ghostcol[i];
+    }
+    pelletsleft = 0;
+    for (int i = 0;i < ROWS;i++)
+    {
+        for (int j = 0;j < COLS;j++)
+        {
+            s >> maze[i][j];
+            if (maze[i][j] == 'o' || maze[i][j] == '.') pelletsleft++;
+          
+        }
+    }
+    playerdir = 0, keydir = 0, mov_timer = 0, bluetimer = 0;
+    for (int i = 0;i < 4;i++) {
+        ghostdir[i] = 0, ghosttimer[i] = 0, blueghost[i] = 0;
+    }
+    return  1;
+}
+void clearsave()
+{
+    ofstream s("savegame.txt");
+    s.close();
+}
 void startghosts()
 {
     for (int i = 0; i < 4; i++)
@@ -157,8 +211,9 @@ void newgame()
     for(int i=0;i<4;i++)
     { blueghost[i] = 0;
     ghosttimer[i] = 0;
+    
 }
-
+    nosave = false;
 }
 void handleInput(sf::RenderWindow& window)
 {
@@ -174,11 +229,13 @@ void handleInput(sf::RenderWindow& window)
                 if (key->code == sf::Keyboard::Key::Up || key->code == sf::Keyboard::Key::W)
                 { 
                     menuchoice = (menuchoice + 2) % 3;
+                    nosave = false;
 
                 }
                 else if (key->code == sf::Keyboard::Key::Down || key->code == sf::Keyboard::Key::S)
                 {
                     menuchoice = (menuchoice + 1 )% 3;
+                    nosave = false;
                 }
                 else if (key->code == sf::Keyboard::Key::Enter)
                 { 
@@ -186,7 +243,16 @@ void handleInput(sf::RenderWindow& window)
                         newgame();
                     else if (menuchoice == 1)
                     {
-
+                      bool b=  loadgame();
+                      if (b)
+                      {
+                          nosave = 0;
+                          gamestate = PLAYING;
+                      }
+                      else
+                      {
+                          nosave = 1;
+                      }
                     }
                     else if(menuchoice==2)
                     window.close();
@@ -201,6 +267,13 @@ void handleInput(sf::RenderWindow& window)
                     keydir = 3;
                 else if (key->code == sf::Keyboard::Key::Right || key->code == sf::Keyboard::Key::D)
                     keydir = 4;
+                else if (key->code == sf::Keyboard::Key::Escape)
+                {
+                    savegame();
+                    gamestate = MENU;
+                    menuchoice = 0;
+                    nosave = 0;
+                }
                 break;
             case GAME_OVER:
                 if (key->code == sf::Keyboard::Key::Enter)
@@ -331,8 +404,13 @@ void drawMenu(sf::RenderWindow& window)
             label = "> " + items[i] + " <";
         }
         drawCentered(window, label, 30, 300.f + i * 60.f, c);
-    }
+  }
+    if (nosave)
+        drawCentered(window, "No saved game", 24, 520.f, sf::Color(255, 60, 80));
+   
 }
+
+
 
 void drawEndScreen(sf::RenderWindow& window)
 {
@@ -432,11 +510,13 @@ void updateGame()
         {
             gamestate = GAME_OVER;
             playerwon = 0;
+            clearsave();
         }
         else if (pelletsleft == 0)
         {
             gamestate = GAME_OVER;
             playerwon = 1;
+            clearsave();
         }
     }
 }
@@ -454,7 +534,7 @@ void drawError(sf::RenderWindow& window, sf::Font& font)
 
 int main()
 {
-    srand(time(0));
+    srand((unsigned)time(0));
     sf::RenderWindow window(sf::VideoMode({ 570, 680 }), "Pac-Man");
     window.setFramerateLimit(60);
 
