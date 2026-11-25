@@ -6,7 +6,7 @@
 #include <string>
 using namespace std;
 const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;const int PLAYER_SPEED = 8;
-char maze[21][19];
+char maze[ROWS][COLS];
 int  playerrow, playercol, ghoststartrow[4], ghoststartcol[4], pelletsleft = 0, ghostcount = 0, keydir = 0, mov_timer = 0, scores = 0;
 int playerdir = 0; int lives = 3; 
 const int GHOSTSPEED = 10; 
@@ -24,7 +24,7 @@ bool playerwon = false;
 bool nosave = false;
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
-
+//for saved game
 bool savegame()
 {
     ofstream s("savegame.txt");
@@ -79,6 +79,7 @@ void clearsave()
     ofstream s("savegame.txt");
     s.close();
 }
+//for ghosts
 void startghosts()
 {
     for (int i = 0; i < 4; i++)
@@ -106,8 +107,8 @@ void ghostmovement()
         }
         int countdir = 0, options[4];
         if (maze[ghostrow[i] - 1][ghostcol[i]] != '#' && ghostdir[i] != 2) options[countdir++] = 1;
-        if (maze[ghostrow[i]][ghostcol[i]-1] != '#' && ghostdir[i] != 1) options[countdir++] = 3;
-        if (maze[ghostrow[i]+1][ghostcol[i]] != '#' && ghostdir[i] != 4) options[countdir++] = 2;
+        if (maze[ghostrow[i]][ghostcol[i]-1] != '#' && ghostdir[i] != 4) options[countdir++] = 3;
+        if (maze[ghostrow[i]+1][ghostcol[i]] != '#' && ghostdir[i] != 1) options[countdir++] = 2;
         if (maze[ghostrow[i]][ghostcol[i] + 1] != '#' && ghostdir[i] != 3) options[countdir++] = 4;
         int bestdistance = 3200, bestdir = 0;
 
@@ -142,7 +143,7 @@ void ghostmovement()
         else if (ghostdir[i] == 4) ghostcol[i] += 1;
     }
 }
-
+//for players
 void playermovement()
 {
             mov_timer++;
@@ -154,7 +155,7 @@ void playermovement()
                 if (keydir == 2 && maze[playerrow + 1][playercol] != '#')  playerdir = keydir;
                 if (keydir == 3 && maze[playerrow ][playercol-1] != '#')  playerdir = keydir;
                 if (keydir == 4 && maze[playerrow ][playercol+1] != '#')  playerdir = keydir;
-
+                keydir = 0;
             }
             int newrow = playerrow; int newcol = playercol;
             if (playerdir == 1) { newrow -= 1; }
@@ -171,6 +172,7 @@ void playermovement()
                 else if (maze[playerrow][playercol] == '.') { scores += 10; pelletsleft--; maze[playerrow][playercol] = '-'; }
             }
 }
+//for loading maze
 bool loadmaze()
 {
     pelletsleft = 0;
@@ -200,6 +202,7 @@ bool loadmaze()
     m.close();
     return true;
 }
+//new game
 void newgame()
 {
     loadmaze();
@@ -215,6 +218,51 @@ void newgame()
 }
     nosave = false;
 }
+//checking collision
+void checkcollision()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if ((ghostrow[i] == playerrow && ghostcol[i] == playercol) ||
+            (oldghostrow[i] == playerrow && oldghostcol[i] == playercol &&
+                oldplayerrow == ghostrow[i] && oldplayercol == ghostcol[i]))
+        {
+
+            if (blueghost[i])
+            {
+                scores += 200;
+                ghostrow[i] = ghoststartrow[i];
+                ghostcol[i] = ghoststartcol[i];
+                ghostdir[i] = 0;
+                blueghost[i] = 0;
+            }
+
+            else
+            {
+                lives--;
+                playerrow = playerstartrow;
+                playercol = playerstartcol;
+                oldplayerrow = playerrow;
+                oldplayercol = playercol;
+                for (int j = 0; j < 4; j++)
+                {
+                    ghostrow[j] = ghoststartrow[j];
+                    ghostcol[j] = ghoststartcol[j];
+                    blueghost[j] = 0;
+                    ghosttimer[j] = 0;
+                    oldghostrow[j] = ghostrow[j];
+                    oldghostcol[j] = ghostcol[j];
+                    ghostdir[j] = 0;
+                    bluetimer = 0;
+                    playerdir = 0;
+                    keydir = 0;
+                }
+                return;
+            }
+        }
+    }
+}
+//input handling
 void handleInput(sf::RenderWindow& window)
 {
     while (const std::optional event = window.pollEvent())
@@ -286,6 +334,7 @@ void handleInput(sf::RenderWindow& window)
         }
     }
 }
+//drawing codes
 void drawPlayer(sf::RenderWindow& window)
 {
     sf::CircleShape p(12.f);
@@ -442,50 +491,17 @@ void drawGame(sf::RenderWindow& window)
     }
     window.display();
 }
-void checkcollision() 
+void drawError(sf::RenderWindow& window, sf::Font& font)
 {
-    for (int i = 0; i < 4; i++) 
-    {
-        if ((ghostrow[i] == playerrow && ghostcol[i] == playercol) ||
-            (oldghostrow[i] == playerrow && oldghostcol[i] == playercol &&
-                oldplayerrow == ghostrow[i] && oldplayercol == ghostcol[i])) 
-        {
-            
-            if (blueghost[i]) 
-            {
-                scores += 200; 
-                ghostrow[i] = ghoststartrow[i]; 
-                ghostcol[i] = ghoststartcol[i];
-                ghostdir[i] = 0; 
-                blueghost[i] = 0; 
-            }
-          
-            else
-            {
-                lives--; 
-                playerrow = playerstartrow; 
-                playercol = playerstartcol; 
-                oldplayerrow = playerrow; 
-                oldplayercol = playercol; 
-                for (int j = 0; j < 4; j++) 
-                {
-                    ghostrow[j] = ghoststartrow[j]; 
-                    ghostcol[j] = ghoststartcol[j]; 
-                    blueghost[j] = 0; 
-                    ghosttimer[j] = 0; 
-                    oldghostrow[j] = ghostrow[j];
-                    oldghostcol[j] = ghostcol[j]; 
-                    ghostdir[j] = 0; 
-                    bluetimer = 0; 
-                    playerdir = 0;
-                    keydir = 0;
-                }
-                return; 
-            }
-        }
-    }
+    sf::Text text(font, "Error: maze.txt not found", 24);
+    text.setFillColor(sf::Color::Red);
+    text.setPosition({ 60.f, 320.f });
+    window.clear(sf::Color::Black);
+    window.draw(text);
+    window.display();
 }
 
+//updating game
 void updateGame()
 {
     if (gamestate == PLAYING)
@@ -522,15 +538,7 @@ void updateGame()
 }
 
 
-void drawError(sf::RenderWindow& window, sf::Font& font)
-{
-    sf::Text text(font, "Error: maze.txt not found", 24);
-    text.setFillColor(sf::Color::Red);
-    text.setPosition({ 60.f, 320.f });
-    window.clear(sf::Color::Black);
-    window.draw(text);
-    window.display();
-}
+
 
 int main()
 {
