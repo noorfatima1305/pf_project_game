@@ -20,8 +20,17 @@ const int MENU = 0, PLAYING = 1, GAME_OVER = 2;
 int gamestate = MENU;
 int menuchoice = 0;        
 bool playerwon = false;
+
 // for saved game
 bool nosave = false;
+
+
+//for bonus task
+int dist[ROWS][COLS];
+bool showdist = 0;
+int lastdistrow = -1, lastdistcol = -1;
+
+
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
 //for saved game
@@ -44,6 +53,7 @@ bool savegame()
     }
     s.close();
     return 1;
+
 
 }
 bool loadgame()
@@ -80,6 +90,37 @@ void clearsave()
     s.close();
 }
 //for ghosts
+
+
+//for bonus
+void distancemap()
+{
+    for (int i = 0; i < ROWS; i++)
+        for (int j = 0; j < COLS; j++)
+            dist[i][j] = 999;
+
+    dist[playerrow][playercol] = 0;
+    bool changed = true;
+    while (changed)
+    {
+        changed = false;
+        for (int r = 0; r < ROWS; r++)
+        {
+            for (int c = 0; c < COLS; c++)
+            {
+                if (maze[r][c] == '#') continue;
+                if (maze[r - 1][c] != '#' && dist[r - 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r - 1][c] + 1; changed = true; }
+                if (maze[r + 1][c] != '#' && dist[r + 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r + 1][c] + 1; changed = true; }
+                if (maze[r][c - 1] != '#' && dist[r][c - 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c - 1] + 1; changed = true; }
+                if (maze[r][c + 1] != '#' && dist[r][c + 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c + 1] + 1; changed = true; }
+            }
+        }
+    }
+    lastdistrow = playerrow;
+    lastdistcol = playercol;
+}
+
+
 void startghosts()
 {
     for (int i = 0; i < 4; i++)
@@ -129,7 +170,9 @@ void ghostmovement()
                 else if (options[j] == 3) c -= 1;
                 else if (options[j] == 4) c += 1;
 
-                int d = abs(r - playerrow) + abs(c - playercol);
+                int d;
+                if (i == 0) d = dist[r][c];
+                else d = abs(r - playerrow) + abs(c - playercol);
                 if (d < bestdistance) { bestdistance = d; bestdir = options[j]; }
 
             }
@@ -207,6 +250,7 @@ void newgame()
 {
     loadmaze();
     startghosts();
+    lastdistrow = -1;
     gamestate = PLAYING;
     keydir = 0, mov_timer = 0, scores = 0;
     playerdir = 0; lives = 3;
@@ -315,6 +359,7 @@ void handleInput(sf::RenderWindow& window)
                     keydir = 3;
                 else if (key->code == sf::Keyboard::Key::Right || key->code == sf::Keyboard::Key::D)
                     keydir = 4;
+
                 else if (key->code == sf::Keyboard::Key::Escape)
                 {
                     savegame();
@@ -322,6 +367,10 @@ void handleInput(sf::RenderWindow& window)
                     menuchoice = 0;
                     nosave = 0;
                 }
+
+                else if (key->code == sf::Keyboard::Key::M)
+                    showdist = !showdist;
+
                 break;
             case GAME_OVER:
                 if (key->code == sf::Keyboard::Key::Enter)
@@ -334,7 +383,31 @@ void handleInput(sf::RenderWindow& window)
         }
     }
 }
+
 //drawing codes
+
+
+
+void drawDistances(sf::RenderWindow& window)
+{
+    sf::Text t(font, "", 12);
+    t.setFillColor(sf::Color(120, 255, 160));
+    for (int r = 0; r < ROWS; r++)
+    {
+        for (int c = 0; c < COLS; c++)
+        {
+            if (maze[r][c] != '#' && dist[r][c] < 999)
+            {
+                t.setString(to_string(dist[r][c]));
+                t.setPosition({ c * TILE + 3.f, r * TILE + HUD_HEIGHT + 6.f });
+                window.draw(t);
+            }
+        }
+    }
+}
+
+
+
 void drawPlayer(sf::RenderWindow& window)
 {
     sf::CircleShape p(12.f);
@@ -483,6 +556,7 @@ void drawGame(sf::RenderWindow& window)
         drawMaze(window);
         drawPlayer(window);
         drawGhosts(window);
+        if (showdist) drawDistances(window);
         drawHUD(window);
         break;
     case GAME_OVER:
@@ -493,12 +567,56 @@ void drawGame(sf::RenderWindow& window)
 }
 void drawError(sf::RenderWindow& window, sf::Font& font)
 {
+
     sf::Text text(font, "Error: maze.txt not found", 24);
     text.setFillColor(sf::Color::Red);
     text.setPosition({ 60.f, 320.f });
     window.clear(sf::Color::Black);
     window.draw(text);
     window.display();
+
+    for (int i = 0; i < 4; i++) 
+    {
+        if ((ghostrow[i] == playerrow && ghostcol[i] == playercol) ||
+            (oldghostrow[i] == playerrow && oldghostcol[i] == playercol &&
+                oldplayerrow == ghostrow[i] && oldplayercol == ghostcol[i])) 
+        {
+            
+            if (blueghost[i]) 
+            {
+                scores += 200; 
+                ghostrow[i] = ghoststartrow[i]; 
+                ghostcol[i] = ghoststartcol[i];
+                ghostdir[i] = 0; 
+                blueghost[i] = 0; 
+            }
+          
+            else
+            {
+                lives--; 
+                playerrow = playerstartrow; 
+                playercol = playerstartcol; 
+                lastdistrow = -1;
+                oldplayerrow = playerrow; 
+                oldplayercol = playercol; 
+                for (int j = 0; j < 4; j++) 
+                {
+                    ghostrow[j] = ghoststartrow[j]; 
+                    ghostcol[j] = ghoststartcol[j]; 
+                    blueghost[j] = 0; 
+                    ghosttimer[j] = 0; 
+                    oldghostrow[j] = ghostrow[j];
+                    oldghostcol[j] = ghostcol[j]; 
+                    ghostdir[j] = 0; 
+                    bluetimer = 0; 
+                    playerdir = 0;
+                    keydir = 0;
+                }
+                return; 
+            }
+        }
+    }
+
 }
 
 //updating game
@@ -514,6 +632,7 @@ void updateGame()
         }
 
         playermovement();
+        if (lastdistrow != playerrow || lastdistcol != playercol) distancemap();
         if (bluetimer > 0)
         {
             bluetimer--;
@@ -550,6 +669,7 @@ int main()
     if (!font.openFromFile("arial.ttf"))
         return 1;
     bool mazeOk = loadmaze();
+    distancemap();
     startghosts();
 
     while (window.isOpen())
