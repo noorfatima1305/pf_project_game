@@ -1,9 +1,11 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <optional>
 #include<fstream>
 #include <cstdlib>
 #include <ctime>
 #include <string>
+#include <cmath>
 using namespace std;
 const int ROWS = 21, COLS = 19; const float TILE = 30.f, HUD_HEIGHT = 50.f;const int PLAYER_SPEED = 8;
 char maze[ROWS][COLS];
@@ -33,6 +35,30 @@ int lastdistrow = -1, lastdistcol = -1;
 
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
+
+// sound effects 
+sf::SoundBuffer chompBuf, powerBuf, eatGhostBuf, deathBuf, winBuf, gameOverBuf, startBuf, ghostWinBuf;
+std::optional<sf::Sound> chompSound, powerSound, eatGhostSound, deathSound, winSound, gameOverSound, startSound, ghostWinSound;
+
+void loadSounds()
+{
+    if (chompBuf.loadFromFile("chomp.wav"))         chompSound.emplace(chompBuf);
+    if (powerBuf.loadFromFile("power.wav"))         powerSound.emplace(powerBuf);
+    if (eatGhostBuf.loadFromFile("eatghost.wav"))   eatGhostSound.emplace(eatGhostBuf);
+    if (deathBuf.loadFromFile("death.wav"))         deathSound.emplace(deathBuf);
+    if (winBuf.loadFromFile("win.wav"))             winSound.emplace(winBuf);
+    if (gameOverBuf.loadFromFile("gameover.wav"))   gameOverSound.emplace(gameOverBuf);
+    if (startBuf.loadFromFile("start.wav"))         startSound.emplace(startBuf);
+    if (ghostWinBuf.loadFromFile("ghostwin.wav"))   ghostWinSound.emplace(ghostWinBuf);
+}
+
+void playSound(std::optional<sf::Sound>& sfx, bool avoidOverlap = false)
+{
+    if (!sfx) return;
+    if (avoidOverlap && sfx->getStatus() == sf::Sound::Status::Playing) return;
+    sfx->play();
+}
+
 //for saved game
 bool savegame()
 {
@@ -82,6 +108,7 @@ bool loadgame()
     for (int i = 0;i < 4;i++) {
         ghostdir[i] = 0, ghosttimer[i] = 0, blueghost[i] = 0;
     }
+    lastdistrow = -1, lastdistcol = -1;
     return  1;
 }
 void clearsave()
@@ -89,8 +116,6 @@ void clearsave()
     ofstream s("savegame.txt");
     s.close();
 }
-//for ghosts
-
 
 //for bonus
 void distancemap()
@@ -109,15 +134,17 @@ void distancemap()
             for (int c = 0; c < COLS; c++)
             {
                 if (maze[r][c] == '#') continue;
-                if (maze[r - 1][c] != '#' && dist[r - 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r - 1][c] + 1; changed = true; }
-                if (maze[r + 1][c] != '#' && dist[r + 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r + 1][c] + 1; changed = true; }
-                if (maze[r][c - 1] != '#' && dist[r][c - 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c - 1] + 1; changed = true; }
-                if (maze[r][c + 1] != '#' && dist[r][c + 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c + 1] + 1; changed = true; }
+                else 
+                {
+                    if (maze[r - 1][c] != '#' && dist[r - 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r - 1][c] + 1; changed = true; }
+                    if (maze[r + 1][c] != '#' && dist[r + 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r + 1][c] + 1; changed = true; }
+                    if (maze[r][c - 1] != '#' && dist[r][c - 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c - 1] + 1; changed = true; }
+                    if (maze[r][c + 1] != '#' && dist[r][c + 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c + 1] + 1; changed = true; }
+                }
             }
         }
     }
-    lastdistrow = playerrow;
-    lastdistcol = playercol;
+   
 }
 
 
@@ -210,9 +237,11 @@ void playermovement()
                 playerrow = newrow;
                 playercol = newcol;
                 if (maze[playerrow][playercol] == 'o') { scores += 50; pelletsleft--; maze[playerrow][playercol] = '-';
-                for (int i = 0;i < 4;i++) blueghost[i] = 1; bluetimer = BLUETIME;
+                for (int i = 0;i < 4;i++) blueghost[i] = 1; bluetimer = BLUETIME; playSound(powerSound);
                 }
-                else if (maze[playerrow][playercol] == '.') { scores += 10; pelletsleft--; maze[playerrow][playercol] = '-'; }
+                else if (maze[playerrow][playercol] == '.') { scores += 10; pelletsleft--; maze[playerrow][playercol] = '-'; 
+                playSound(chompSound, true);
+                }
             }
 }
 //for loading maze
@@ -261,6 +290,7 @@ void newgame()
     
 }
     nosave = false;
+    playSound(startSound);
 }
 //checking collision
 void checkcollision()
@@ -279,11 +309,14 @@ void checkcollision()
                 ghostcol[i] = ghoststartcol[i];
                 ghostdir[i] = 0;
                 blueghost[i] = 0;
+                playSound(eatGhostSound);
             }
 
             else
             {
                 lives--;
+                playSound(deathSound);
+                lastdistrow = -1, lastdistcol = -1;
                 playerrow = playerstartrow;
                 playercol = playerstartcol;
                 oldplayerrow = playerrow;
@@ -340,6 +373,7 @@ void handleInput(sf::RenderWindow& window)
                       {
                           nosave = 0;
                           gamestate = PLAYING;
+                          playSound(startSound);
                       }
                       else
                       {
@@ -410,38 +444,101 @@ void drawDistances(sf::RenderWindow& window)
 
 void drawPlayer(sf::RenderWindow& window)
 {
-    sf::CircleShape p(12.f);
-    p.setFillColor(sf::Color(255, 220, 0));
-    p.setPosition({ playercol * TILE + 3.f, playerrow * TILE + HUD_HEIGHT + 3.f });
-    window.draw(p);
-}
+    const float cx = playercol * TILE + TILE / 2.f;
+    const float cy = playerrow * TILE + HUD_HEIGHT + TILE / 2.f;
+    const float radius = 12.f;
 
+    // Mouth opens and closes while moving; stays gently open when idle
+    float mouthPhase = (playerdir != 0) ? (0.5f + 0.5f * std::sin(static_cast<float>(mov_timer) * 0.85f)) : 0.35f;
+    float mouthHalfAngle = mouthPhase * 34.f;
+
+    // 0 = default right, 1 = up, 2 = down, 3 = left, 4 = right
+    float facingDeg = 0.f;
+    if (playerdir == 1)      facingDeg = -90.f;
+    else if (playerdir == 2) facingDeg = 90.f;
+    else if (playerdir == 3) facingDeg = 180.f;
+    else if (playerdir == 4) facingDeg = 0.f;
+
+    const int segments = 28;
+    sf::ConvexShape pac;
+    pac.setPointCount(static_cast<std::size_t>(segments + 2));
+    pac.setFillColor(sf::Color(255, 220, 0));
+    pac.setPoint(0, { cx, cy });
+
+    const float pi = 3.14159265f;
+    float startDeg = facingDeg + mouthHalfAngle;
+    float endDeg = facingDeg + 360.f - mouthHalfAngle;
+
+    for (int i = 0; i <= segments; i++)
+    {
+        float t = static_cast<float>(i) / static_cast<float>(segments);
+        float deg = startDeg + t * (endDeg - startDeg);
+        float rad = deg * pi / 180.f;
+        pac.setPoint(static_cast<std::size_t>(i + 1), {
+            cx + radius * std::cos(rad),
+            cy + radius * std::sin(rad)
+            });
+    }
+    window.draw(pac);
+
+    // Subtle dark eye positioned cleanly above the mouth
+    float eyeX = (playerdir == 3) ? cx - 2.f : cx - 1.f;
+    float eyeY = cy - 6.5f;
+    sf::CircleShape eye(2.f);
+    eye.setFillColor(sf::Color(25, 22, 10));
+    eye.setPosition({ eyeX, eyeY });
+    window.draw(eye);
+}
 
 void drawGhosts(sf::RenderWindow& window)
 {
-    sf::Color colors[4] = { sf::Color(255, 60, 80), sf::Color(255, 150, 220),
-                            sf::Color(60, 220, 255), sf::Color(255, 160, 30) };
+    sf::Color colors[4] = {
+        sf::Color(255, 65, 85),
+        sf::Color(255, 155, 220),
+        sf::Color(70, 225, 255),
+        sf::Color(255, 165, 40)
+    };
+
     for (int i = 0; i < 4; i++)
     {
         float x = ghostcol[i] * TILE + 3.f;
         float y = ghostrow[i] * TILE + HUD_HEIGHT + 3.f;
+
         sf::Color c = colors[i];
-        if (blueghost[i]) c = sf::Color(40, 40, 255);
+        if (blueghost[i])
+        {
+            bool flashWhite = (bluetimer > 0 && bluetimer < 90 && ((bluetimer / 10) % 2 == 0));
+            c = flashWhite ? sf::Color(235, 240, 255) : sf::Color(40, 60, 255);
+        }
+
         sf::CircleShape head(12.f);
         head.setFillColor(c);
         head.setPosition({ x, y });
         window.draw(head);
 
-        sf::RectangleShape feet({ 24.f, 12.f });
-        feet.setFillColor(c);
-        feet.setPosition({ x, y + 12.f });
-        window.draw(feet);
+        sf::RectangleShape body({ 24.f, 9.f });
+        body.setFillColor(c);
+        body.setPosition({ x, y + 10.f });
+        window.draw(body);
 
-    
+        for (int b = 0; b < 3; b++)
+        {
+            sf::CircleShape bump(4.f);
+            bump.setFillColor(c);
+            bump.setPosition({ x + b * 8.f, y + 16.f });
+            window.draw(bump);
+        }
+
+        float pxOff = 0.f, pyOff = 0.f;
+        if (ghostdir[i] == 1)      pyOff = -1.5f;
+        else if (ghostdir[i] == 2) pyOff = 1.5f;
+        else if (ghostdir[i] == 3) pxOff = -1.5f;
+        else if (ghostdir[i] == 4) pxOff = 1.5f;
+
         for (int e = 0; e < 2; e++)
         {
-            float ex = x + 4.f + e * 9.f;
-            float ey = y + 6.f;
+            float ex = x + 3.5f + e * 9.f + pxOff * 0.5f;
+            float ey = y + 5.5f + pyOff * 0.5f;
 
             sf::CircleShape eye(4.f);
             eye.setFillColor(sf::Color::White);
@@ -449,8 +546,8 @@ void drawGhosts(sf::RenderWindow& window)
             window.draw(eye);
 
             sf::CircleShape pupil(2.f);
-            pupil.setFillColor(sf::Color(30, 30, 200));
-            pupil.setPosition({ ex + 2.f, ey + 2.f });
+            pupil.setFillColor(sf::Color(25, 35, 180));
+            pupil.setPosition({ ex + 2.f + pxOff, ey + 2.f + pyOff });
             window.draw(pupil);
         }
     }
@@ -459,23 +556,52 @@ void drawGhosts(sf::RenderWindow& window)
 
 void drawHUD(sf::RenderWindow& window)
 {
+    sf::RectangleShape hudBar({ 570.f, HUD_HEIGHT });
+    hudBar.setFillColor(sf::Color(14, 18, 46));
+    window.draw(hudBar);
+
+    sf::RectangleShape hudLine({ 570.f, 2.f });
+    hudLine.setFillColor(sf::Color(35, 95, 235));
+    hudLine.setPosition({ 0.f, HUD_HEIGHT - 2.f });
+    window.draw(hudLine);
+
     sf::Text s(font, "SCORE " + std::to_string(scores), 22);
-    s.setPosition({ 15.f, 12.f });
+    s.setFillColor(sf::Color::White);
+    s.setPosition({ 16.f, 13.f });
     window.draw(s);
 
-    sf::Text l(font, "LIVES " + std::to_string(lives), 22);
-    l.setPosition({ 420.f, 12.f });
+    sf::Text l(font, "LIVES", 22);
+    l.setFillColor(sf::Color(255, 220, 0));
+    l.setPosition({ 375.f, 13.f });
     window.draw(l);
+
+    int shownLives = lives > 0 ? lives : 0;
+    for (int i = 0; i < shownLives; i++)
+    {
+        sf::CircleShape lifeIcon(8.f);
+        lifeIcon.setFillColor(sf::Color(255, 220, 0));
+        lifeIcon.setPosition({ 455.f + i * 25.f, 17.f });
+        window.draw(lifeIcon);
+    }
 }
 
 void drawMaze(sf::RenderWindow& window)
 {
-    sf::RectangleShape wall({ TILE, TILE });
-    wall.setFillColor(sf::Color(33, 33, 222));
+    sf::RectangleShape wallOuter({ TILE, TILE });
+    wallOuter.setFillColor(sf::Color(25, 95, 255));
+
+    const float inset = 4.f;
+    sf::RectangleShape wallInner({ TILE - inset * 2.f, TILE - inset * 2.f });
+    wallInner.setFillColor(sf::Color(10, 14, 38));
+
     sf::CircleShape pellet(3.f);
-    pellet.setFillColor(sf::Color(255, 220, 180));
-    sf::CircleShape power(8.f);
-    power.setFillColor(sf::Color(255, 220, 180));
+    pellet.setFillColor(sf::Color(255, 225, 185));
+
+    float pulse = 7.f + 1.5f * std::sin(static_cast<float>(mov_timer) * 0.9f);
+    sf::CircleShape power(pulse);
+    power.setFillColor(sf::Color(255, 215, 110));
+    power.setOutlineThickness(1.5f);
+    power.setOutlineColor(sf::Color(255, 150, 45));
 
     for (int r = 0; r < ROWS; r++)
     {
@@ -483,25 +609,28 @@ void drawMaze(sf::RenderWindow& window)
         {
             float x = c * TILE;
             float y = r * TILE + HUD_HEIGHT;
+
             if (maze[r][c] == '#')
             {
-                wall.setPosition({ x, y });
-                window.draw(wall);
+                wallOuter.setPosition({ x, y });
+                window.draw(wallOuter);
+
+                wallInner.setPosition({ x + inset, y + inset });
+                window.draw(wallInner);
             }
             else if (maze[r][c] == '.')
             {
-                pellet.setPosition({ x + TILE / 2 - 3.f, y + TILE / 2 - 3.f });
+                pellet.setPosition({ x + TILE / 2.f - 3.f, y + TILE / 2.f - 3.f });
                 window.draw(pellet);
             }
             else if (maze[r][c] == 'o')
             {
-                power.setPosition({ x + TILE / 2 - 8.f, y + TILE / 2 - 8.f });
+                power.setPosition({ x + TILE / 2.f - pulse, y + TILE / 2.f - pulse });
                 window.draw(power);
             }
         }
     }
 }
-
 
 void drawCentered(sf::RenderWindow& window, const string& str, unsigned int size, float y, sf::Color color)
 {
@@ -514,34 +643,78 @@ void drawCentered(sf::RenderWindow& window, const string& str, unsigned int size
 
 void drawMenu(sf::RenderWindow& window)
 {
-    drawCentered(window, "PAC-MAN", 56, 140.f, sf::Color(255, 220, 0));
+    // Outer neon border frame
+    sf::RectangleShape frame({ 490.f, 580.f });
+    frame.setFillColor(sf::Color(15, 20, 48));
+    frame.setOutlineThickness(3.f);
+    frame.setOutlineColor(sf::Color(40, 110, 255));
+    frame.setPosition({ 40.f, 50.f });
+    window.draw(frame);
+
+    // Decorative title banner underline
+    sf::RectangleShape accent({ 260.f, 4.f });
+    accent.setFillColor(sf::Color(255, 190, 20));
+    accent.setPosition({ (570.f - 260.f) / 2.f, 184.f });
+    window.draw(accent);
+
+    drawCentered(window, "PAC-MAN", 56, 112.f, sf::Color(255, 220, 0));
+
     string items[3] = { "New Game", "Continue", "Exit" };
     for (int i = 0; i < 3; i++)
     {
-        sf::Color c = sf::Color(200, 200, 200);
-        string label = items[i];
-        if (i == menuchoice)
-        {
-            c = sf::Color(255, 220, 0);
-            label = "> " + items[i] + " <";
-        }
-        drawCentered(window, label, 30, 300.f + i * 60.f, c);
-  }
+        bool selected = (i == menuchoice);
+        float boxW = 280.f;
+        float boxH = 48.f;
+        float boxX = (570.f - boxW) / 2.f;
+        float boxY = 255.f + i * 72.f;
+
+        sf::RectangleShape optionBox({ boxW, boxH });
+        optionBox.setFillColor(selected ? sf::Color(35, 58, 125) : sf::Color(22, 28, 62));
+        optionBox.setOutlineThickness(2.f);
+        optionBox.setOutlineColor(selected ? sf::Color(255, 220, 0) : sf::Color(55, 75, 145));
+        optionBox.setPosition({ boxX, boxY });
+        window.draw(optionBox);
+
+        sf::Color c = selected ? sf::Color(255, 220, 0) : sf::Color(215, 222, 240);
+        string label = selected ? ("> " + items[i] + " <") : items[i];
+        drawCentered(window, label, 26, boxY + 9.f, c);
+    }
+
     if (nosave)
-        drawCentered(window, "No saved game", 24, 520.f, sf::Color(255, 60, 80));
-   
+        drawCentered(window, "No saved game found", 20, 480.f, sf::Color(255, 80, 100));
+
+    drawCentered(window, "Up/Down or W/S: Select   Enter: Confirm", 15, 552.f, sf::Color(150, 168, 210));
+    drawCentered(window, "In Game: Arrows/WASD Move  |  Esc Save  |  M Map", 14, 582.f, sf::Color(115, 135, 180));
 }
-
-
 
 void drawEndScreen(sf::RenderWindow& window)
 {
-    if (playerwon)
-        drawCentered(window, "YOU WIN", 56, 200.f, sf::Color(60, 220, 120));
-    else
-        drawCentered(window, "GAME OVER", 56, 200.f, sf::Color(255, 60, 80));
-    drawCentered(window, "SCORE " + to_string(scores), 30, 300.f, sf::Color::White);
-    drawCentered(window, "Press Enter", 24, 380.f, sf::Color(200, 200, 200));
+    sf::Color themeColor = playerwon ? sf::Color(65, 225, 130) : sf::Color(255, 70, 90);
+
+    sf::RectangleShape card({ 450.f, 380.f });
+    card.setFillColor(sf::Color(16, 21, 50));
+    card.setOutlineThickness(3.f);
+    card.setOutlineColor(themeColor);
+    card.setPosition({ 60.f, 150.f });
+    window.draw(card);
+
+    string title = playerwon ? "YOU WIN!" : "GAME OVER";
+    string subtitle = playerwon ? "All pellets cleared!" : "The ghosts caught you!";
+
+    drawCentered(window, title, 50, 185.f, themeColor);
+    drawCentered(window, subtitle, 18, 248.f, sf::Color(195, 205, 230));
+
+    sf::RectangleShape scoreBox({ 270.f, 64.f });
+    scoreBox.setFillColor(sf::Color(24, 31, 72));
+    scoreBox.setOutlineThickness(2.f);
+    scoreBox.setOutlineColor(sf::Color(70, 95, 175));
+    scoreBox.setPosition({ (570.f - 270.f) / 2.f, 295.f });
+    window.draw(scoreBox);
+
+    drawCentered(window, "FINAL SCORE", 14, 304.f, sf::Color(155, 175, 220));
+    drawCentered(window, to_string(scores), 28, 322.f, sf::Color(255, 220, 0));
+
+    drawCentered(window, "Press Enter to return to Menu", 20, 435.f, sf::Color(225, 230, 245));
 }
 
 void drawGame(sf::RenderWindow& window)
@@ -575,48 +748,6 @@ void drawError(sf::RenderWindow& window, sf::Font& font)
     window.draw(text);
     window.display();
 
-    for (int i = 0; i < 4; i++) 
-    {
-        if ((ghostrow[i] == playerrow && ghostcol[i] == playercol) ||
-            (oldghostrow[i] == playerrow && oldghostcol[i] == playercol &&
-                oldplayerrow == ghostrow[i] && oldplayercol == ghostcol[i])) 
-        {
-            
-            if (blueghost[i]) 
-            {
-                scores += 200; 
-                ghostrow[i] = ghoststartrow[i]; 
-                ghostcol[i] = ghoststartcol[i];
-                ghostdir[i] = 0; 
-                blueghost[i] = 0; 
-            }
-          
-            else
-            {
-                lives--; 
-                playerrow = playerstartrow; 
-                playercol = playerstartcol; 
-                lastdistrow = -1;
-                oldplayerrow = playerrow; 
-                oldplayercol = playercol; 
-                for (int j = 0; j < 4; j++) 
-                {
-                    ghostrow[j] = ghoststartrow[j]; 
-                    ghostcol[j] = ghoststartcol[j]; 
-                    blueghost[j] = 0; 
-                    ghosttimer[j] = 0; 
-                    oldghostrow[j] = ghostrow[j];
-                    oldghostcol[j] = ghostcol[j]; 
-                    ghostdir[j] = 0; 
-                    bluetimer = 0; 
-                    playerdir = 0;
-                    keydir = 0;
-                }
-                return; 
-            }
-        }
-    }
-
 }
 
 //updating game
@@ -632,7 +763,10 @@ void updateGame()
         }
 
         playermovement();
-        if (lastdistrow != playerrow || lastdistcol != playercol) distancemap();
+        if (lastdistrow != playerrow || lastdistcol != playercol) {
+            distancemap();  lastdistrow = playerrow;
+            lastdistcol = playercol;
+        }
         if (bluetimer > 0)
         {
             bluetimer--;
@@ -646,12 +780,15 @@ void updateGame()
             gamestate = GAME_OVER;
             playerwon = 0;
             clearsave();
+            playSound(gameOverSound);
         }
         else if (pelletsleft == 0)
         {
+           
             gamestate = GAME_OVER;
             playerwon = 1;
             clearsave();
+            playSound(winSound);
         }
     }
 }
@@ -668,6 +805,7 @@ int main()
 
     if (!font.openFromFile("arial.ttf"))
         return 1;
+    loadSounds();
     bool mazeOk = loadmaze();
     distancemap();
     startghosts();
