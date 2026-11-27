@@ -21,9 +21,42 @@ int gamestate = MENU;
 int menuchoice = 0;        
 bool playerwon = false;
 
+//for bonus task
+int dist[ROWS][COLS];
+bool showdist = 0;
+int lastdistrow = -1, lastdistcol = -1;
+
 const int BLUETIME = 300, BLUESPEED = 16;
 sf::Font font;
 
+
+//for bonus
+void distancemap()
+{
+    for (int i = 0; i < ROWS; i++)
+        for (int j = 0; j < COLS; j++)
+            dist[i][j] = 999;
+
+    dist[playerrow][playercol] = 0;
+    bool changed = true;
+    while (changed)
+    {
+        changed = false;
+        for (int r = 0; r < ROWS; r++)
+        {
+            for (int c = 0; c < COLS; c++)
+            {
+                if (maze[r][c] == '#') continue;
+                if (maze[r - 1][c] != '#' && dist[r - 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r - 1][c] + 1; changed = true; }
+                if (maze[r + 1][c] != '#' && dist[r + 1][c] + 1 < dist[r][c]) { dist[r][c] = dist[r + 1][c] + 1; changed = true; }
+                if (maze[r][c - 1] != '#' && dist[r][c - 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c - 1] + 1; changed = true; }
+                if (maze[r][c + 1] != '#' && dist[r][c + 1] + 1 < dist[r][c]) { dist[r][c] = dist[r][c + 1] + 1; changed = true; }
+            }
+        }
+    }
+    lastdistrow = playerrow;
+    lastdistcol = playercol;
+}
 
 void startghosts()
 {
@@ -74,7 +107,9 @@ void ghostmovement()
                 else if (options[j] == 3) c -= 1;
                 else if (options[j] == 4) c += 1;
 
-                int d = abs(r - playerrow) + abs(c - playercol);
+                int d;
+                if (i == 0) d = dist[r][c];
+                else d = abs(r - playerrow) + abs(c - playercol);
                 if (d < bestdistance) { bestdistance = d; bestdir = options[j]; }
 
             }
@@ -150,6 +185,7 @@ void newgame()
 {
     loadmaze();
     startghosts();
+    lastdistrow = -1;
     gamestate = PLAYING;
     keydir = 0, mov_timer = 0, scores = 0;
     playerdir = 0; lives = 3;
@@ -201,6 +237,8 @@ void handleInput(sf::RenderWindow& window)
                     keydir = 3;
                 else if (key->code == sf::Keyboard::Key::Right || key->code == sf::Keyboard::Key::D)
                     keydir = 4;
+                else if (key->code == sf::Keyboard::Key::M)
+                    showdist = !showdist;
                 break;
             case GAME_OVER:
                 if (key->code == sf::Keyboard::Key::Enter)
@@ -213,6 +251,27 @@ void handleInput(sf::RenderWindow& window)
         }
     }
 }
+
+
+void drawDistances(sf::RenderWindow& window)
+{
+    sf::Text t(font, "", 12);
+    t.setFillColor(sf::Color(120, 255, 160));
+    for (int r = 0; r < ROWS; r++)
+    {
+        for (int c = 0; c < COLS; c++)
+        {
+            if (maze[r][c] != '#' && dist[r][c] < 999)
+            {
+                t.setString(to_string(dist[r][c]));
+                t.setPosition({ c * TILE + 3.f, r * TILE + HUD_HEIGHT + 6.f });
+                window.draw(t);
+            }
+        }
+    }
+}
+
+
 void drawPlayer(sf::RenderWindow& window)
 {
     sf::CircleShape p(12.f);
@@ -356,6 +415,7 @@ void drawGame(sf::RenderWindow& window)
         drawMaze(window);
         drawPlayer(window);
         drawGhosts(window);
+        if (showdist) drawDistances(window);
         drawHUD(window);
         break;
     case GAME_OVER:
@@ -387,6 +447,7 @@ void checkcollision()
                 lives--; 
                 playerrow = playerstartrow; 
                 playercol = playerstartcol; 
+                lastdistrow = -1;
                 oldplayerrow = playerrow; 
                 oldplayercol = playercol; 
                 for (int j = 0; j < 4; j++) 
@@ -420,6 +481,7 @@ void updateGame()
         }
 
         playermovement();
+        if (lastdistrow != playerrow || lastdistcol != playercol) distancemap();
         if (bluetimer > 0)
         {
             bluetimer--;
@@ -462,6 +524,7 @@ int main()
     if (!font.openFromFile("arial.ttf"))
         return 1;
     bool mazeOk = loadmaze();
+    distancemap();
     startghosts();
 
     while (window.isOpen())
